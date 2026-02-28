@@ -1,6 +1,7 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useRef, useEffect } from "react";
 import ThemeContext from "../Context/ThemeContext";
 import { toast, Toaster } from "react-hot-toast";
+import emailjs from "@emailjs/browser";
 import {
   FiCheckCircle,
   FiMail,
@@ -8,13 +9,25 @@ import {
   FiUser,
   FiBriefcase,
   FiHelpCircle,
+  FiAlertCircle,
 } from "react-icons/fi";
 
 const ContactUs = () => {
   const { isDarkMode } = useContext(ThemeContext);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useRef();
 
-  // Reusable input class with refined dark/light styles
+  // EmailJS configuration with your credentials
+  const EMAILJS_SERVICE_ID = "service_go6ejc9";
+  const EMAILJS_TEMPLATE_ID = "template_3gda2lc"; 
+  const EMAILJS_PUBLIC_KEY = "lpeVw_bzrKNHuQvWN";
+
+  // Initialize EmailJS with your public key
+  useEffect(() => {
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+  }, []);
+
+  // Reusable input class
   const inputClass = `
         border 
         rounded-md 
@@ -33,16 +46,75 @@ const ContactUs = () => {
         }
     `;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Get form data
+      const formData = new FormData(formRef.current);
+      
+      // Log form data for debugging
+      const formValues = {
+        firstName: formData.get('firstName'),
+        lastName: formData.get('lastName'),
+        email: formData.get('email'),
+        jobTitle: formData.get('jobTitle'),
+        phone: formData.get('phone'),
+        companySize: formData.get('companySize'),
+        manageQuestion: formData.get('manageQuestion'),
+        helpQuestion: formData.get('helpQuestion'),
+      };
+      
+      console.log("Form Data:", formValues);
+
+      // Prepare template parameters - USING SIMPLE NAMES
+      const templateParams = {
+        name: `${formData.get('firstName') || ''} ${formData.get('lastName') || ''}`.trim(),
+        email: formData.get('email') || '',
+        phone: formData.get('phone') || '',
+        job_title: formData.get('jobTitle') || 'Not provided',
+        company_size: formData.get('companySize') || 'Not specified',
+        message: formData.get('manageQuestion') || '',
+        help: formData.get('helpQuestion') || 'Not provided',
+      };
+
+      console.log("Sending with params:", templateParams);
+
+      // Send email using EmailJS
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams
+      );
+
+      console.log("Email sent successfully:", result);
+      
       showSuccessToast();
-      e.target.reset(); // Reset form
-    }, 1500);
+      e.target.reset();
+      
+    } catch (error) {
+      console.error("EmailJS Error Details:", {
+        message: error.message,
+        text: error.text,
+        status: error.status
+      });
+      
+      let errorMessage = "Failed to send message. ";
+      if (error.status === 404) {
+        errorMessage += "Template not found. Please check your Template ID.";
+      } else if (error.status === 401) {
+        errorMessage += "Authentication failed. Check your Public Key.";
+      } else if (error.status === 400) {
+        errorMessage += "Bad request. Check template variables.";
+      } else {
+        errorMessage += error.text || "Please try again.";
+      }
+      
+      showErrorToast(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const showSuccessToast = () => {
@@ -102,26 +174,82 @@ const ContactUs = () => {
     ));
   };
 
-  // Company logos with their respective image URLs
+  const showErrorToast = (message) => {
+    toast.custom((t) => (
+      <div
+        className={`${t.visible ? "animate-enter" : "animate-leave"} 
+                max-w-md w-full ${
+                  isDarkMode ? "bg-gray-800" : "bg-white"
+                } shadow-lg rounded-lg 
+                pointer-events-auto flex ring-1 ring-red-500 ring-opacity-50 p-4`}
+      >
+        <div className="flex items-start">
+          <div className="flex-shrink-0 pt-0.5">
+            <FiAlertCircle
+              className={`h-6 w-6 ${
+                isDarkMode ? "text-red-400" : "text-red-600"
+              }`}
+            />
+          </div>
+          <div className="ml-3 flex-1">
+            <p
+              className={`text-sm font-medium ${
+                isDarkMode ? "text-white" : "text-gray-900"
+              }`}
+            >
+              Submission Failed
+            </p>
+            <p
+              className={`mt-1 text-sm ${
+                isDarkMode ? "text-gray-300" : "text-gray-500"
+              }`}
+            >
+              {message}
+            </p>
+          </div>
+          <div className="ml-4 flex-shrink-0 flex">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className={`rounded-md inline-flex ${
+                isDarkMode
+                  ? "text-gray-400 hover:text-gray-300"
+                  : "text-gray-500 hover:text-gray-700"
+              } focus:outline-none`}
+            >
+              <span className="sr-only">Close</span>
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    ));
+  };
+
   const companies = [
     {
-      name: "",
+      name: "Google",
       logo: "https://upload.wikimedia.org/wikipedia/commons/2/2f/Google_2015_logo.svg",
     },
     {
-      name: "",
+      name: "Microsoft",
       logo: "https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg",
     },
     {
-      name: "",
+      name: "Amazon",
       logo: "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg",
     },
     {
-      name: "",
+      name: "Netflix",
       logo: "https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg",
     },
     {
-      name: "",
+      name: "Spotify",
       logo: "https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg",
     },
   ];
@@ -154,7 +282,7 @@ const ContactUs = () => {
             Have questions? We're here to help!
           </p>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form ref={formRef} className="space-y-5" onSubmit={handleSubmit}>
             <div className="flex gap-4">
               <div className="relative flex-1">
                 <FiUser
@@ -164,6 +292,7 @@ const ContactUs = () => {
                 />
                 <input
                   type="text"
+                  name="firstName"
                   placeholder="First Name *"
                   className={`${inputClass} pl-10`}
                   required
@@ -177,6 +306,7 @@ const ContactUs = () => {
                 />
                 <input
                   type="text"
+                  name="lastName"
                   placeholder="Last Name *"
                   className={`${inputClass} pl-10`}
                   required
@@ -193,6 +323,7 @@ const ContactUs = () => {
                 />
                 <input
                   type="email"
+                  name="email"
                   placeholder="Work Email *"
                   className={`${inputClass} pl-10`}
                   required
@@ -206,6 +337,7 @@ const ContactUs = () => {
                 />
                 <input
                   type="text"
+                  name="jobTitle"
                   placeholder="Job Title"
                   className={`${inputClass} pl-10`}
                 />
@@ -220,20 +352,24 @@ const ContactUs = () => {
               />
               <input
                 type="tel"
+                name="phone"
                 placeholder="Phone number *"
                 className={`${inputClass} pl-10`}
                 required
               />
             </div>
 
-            <div className="">
-              <div className="relative flex-1"></div>
-              <select className={`${inputClass} cursor-pointer`} required>
-                <option value="">Company Size</option>
-                <option value="1-10">1-10</option>
-                <option value="11-50">11-50</option>
-                <option value="51-200">51-200</option>
-                <option value="200+">200+</option>
+            <div>
+              <select 
+                name="companySize" 
+                className={`${inputClass} cursor-pointer`} 
+                required
+              >
+                <option value="">Company Size *</option>
+                <option value="1-10">1-10 employees</option>
+                <option value="11-50">11-50 employees</option>
+                <option value="51-200">51-200 employees</option>
+                <option value="200+">200+ employees</option>
               </select>
             </div>
 
@@ -244,6 +380,7 @@ const ContactUs = () => {
                 }`}
               />
               <textarea
+                name="manageQuestion"
                 placeholder="What would you like to manage with babelforge.com? *"
                 className={`${inputClass} h-28 pl-10 resize-y`}
                 required
@@ -257,6 +394,7 @@ const ContactUs = () => {
                 }`}
               />
               <textarea
+                name="helpQuestion"
                 placeholder="How can our team help you?"
                 className={`${inputClass} h-28 pl-10 resize-y`}
               />
@@ -288,7 +426,7 @@ const ContactUs = () => {
               className={`w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 
                                 rounded-lg hover:opacity-90 transition-all duration-300 transform hover:scale-[1.01] 
                                 shadow-md flex items-center justify-center gap-2 ${
-                                  isSubmitting ? "opacity-80" : ""
+                                  isSubmitting ? "opacity-80 cursor-not-allowed" : ""
                                 }`}
             >
               {isSubmitting ? (
@@ -313,11 +451,11 @@ const ContactUs = () => {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Processing...
+                  Sending...
                 </>
               ) : (
                 <>
-                  Submit
+                  Send Message
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="h-5 w-5"

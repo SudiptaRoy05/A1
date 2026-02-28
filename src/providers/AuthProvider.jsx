@@ -130,7 +130,7 @@ const AuthProvider = ({ children }) => {
         console.log(data);
       } else {
         setUser(currentUser);
-        await axios.get(
+        await axios.post(
           `http://localhost:5001/logout`,
           {
             withCredentials: true,

@@ -329,17 +329,7 @@ const Auction = () => {
 
         <div id="auction-section" className="w-11/12 mx-auto py-10">
           {/* Debug Info - Remove in production */}
-          {/* <div className="mb-4 p-4 bg-yellow-100 text-black rounded">
-            <p>Total Auctions: {auctionData.length}</p>
-            <p>Active Auctions: {filteredAuctions.length}</p>
-            <p>Current Category: {activeCategory}</p>
-            <button 
-              onClick={() => refetch()}
-              className="mt-2 px-4 py-2 bg-purple-600 text-white rounded"
-            >
-              Refresh Data
-            </button>
-          </div> */}
+
 
           {/* Section Header */}
           <motion.div

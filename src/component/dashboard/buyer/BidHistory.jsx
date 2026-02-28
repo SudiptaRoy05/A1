@@ -4,6 +4,7 @@ import ThemeContext from "../../Context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import useBidHistory from "../../../hooks/useBidHistory";
 import LoadingSpinner from "../../LoadingSpinner";
+
 export default function BidHistory() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -24,13 +25,30 @@ export default function BidHistory() {
     return date.toLocaleString();
   };
 
-  const filteredBids = bidHistory
+  // Calculate position for each bid based on amount
+  const calculatePosition = (bids, currentBid) => {
+    const sameAuctionBids = bids
+      .filter(bid => bid.auctionId === currentBid.auctionId)
+      .sort((a, b) => b.bidAmount - a.bidAmount);
+    
+    const position = sameAuctionBids.findIndex(bid => bid.id === currentBid.id) + 1;
+    return position > 0 ? position : sameAuctionBids.length + 1;
+  };
+
+  // Enhanced bid data with positions
+  const enhancedBidHistory = bidHistory.map(bid => ({
+    ...bid,
+    position: calculatePosition(bidHistory, bid)
+  }));
+
+  const filteredBids = enhancedBidHistory
     .filter(
       (bid) =>
         bid?.bidder?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         bid?.bidAmount?.toString().includes(searchQuery) ||
         bid?.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bid?.auctionTitle?.toLowerCase().includes(searchQuery.toLowerCase())
+        bid?.auctionTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        bid?.auctionId?.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) =>
       sortOrder === "desc"
@@ -57,7 +75,7 @@ export default function BidHistory() {
               : "text-gray-700"
           }`}
         >
-          Bid History
+          My Bidding History
         </h1>
 
         {/* Search */}
@@ -119,6 +137,26 @@ export default function BidHistory() {
         </span>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <p className="text-sm text-gray-500">Total Bids</p>
+          <p className="text-2xl font-bold">{bidHistory.length}</p>
+        </div>
+        <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <p className="text-sm text-gray-500">Highest Bid</p>
+          <p className="text-2xl font-bold">
+            ${Math.max(...bidHistory.map(b => b.bidAmount), 0).toFixed(2)}
+          </p>
+        </div>
+        <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
+          <p className="text-sm text-gray-500">Active Auctions</p>
+          <p className="text-2xl font-bold">
+            {new Set(bidHistory.filter(b => b.status !== "End").map(b => b.auctionId)).size}
+          </p>
+        </div>
+      </div>
+
       {/* Table */}
       <div
         className={`overflow-x-auto rounded-lg border ${
@@ -139,7 +177,7 @@ export default function BidHistory() {
           >
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                Bidder
+                Auction
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                 Bid Amount
@@ -163,65 +201,94 @@ export default function BidHistory() {
             {filteredBids?.length > 0 ? (
               filteredBids.map((bid, index) => (
                 <tr
-                  key={index}
+                  key={bid.id || index}
                   className={`${
                     isDarkMode
                       ? "hover:bg-gray-700"
                       : "hover:bg-gray-50 text-gray-600"
-                  } transition-colors`}
+                  } transition-colors cursor-pointer`}
+                  onClick={() => bid?.status === "End" 
+                    ? navigate(`/dashboard/status?auctionId=${bid.auctionId}`)
+                    : navigate(`/liveBid/${bid.auctionId}`)
+                  }
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <img
-                        src={bid?.auctionImage}
-                        alt="Bidder"
-                        className="w-10 h-10 rounded-full"
-                      />
-                      <div className="ml-4 text-sm font-medium">
-                        {bid?.auctionTitle}
+                      {bid?.auctionImage && (
+                        <img
+                          src={bid.auctionImage}
+                          alt={bid?.auctionTitle}
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.src = 'https://via.placeholder.com/40';
+                          }}
+                        />
+                      )}
+                      <div className="ml-4">
+                        <div className="text-sm font-medium">
+                          {bid?.auctionTitle || 'Unknown Auction'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          ID: {bid?.auctionId}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    ${bid?.bidAmount?.toFixed(2)}
+                    <span className="text-purple-600 font-bold">
+                      ${bid?.bidAmount?.toFixed(2)}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {formatTime(bid?.time)}
                   </td>
-                  <td className="px-6 py-4 text-sm font-bold flex items-center gap-3">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs ${
+                      className={`px-2 py-1 rounded-full text-xs font-semibold ${
                         bid.status === "End"
-                          ? "bg-red-200 text-red-800"
-                          : "bg-green-200 text-green-800"
+                          ? "bg-red-100 text-red-800"
+                          : bid.status === "Won"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
                       }`}
                     >
-                      {bid?.status}
+                      {bid?.status || 'Active'}
                     </span>
-                    <button
-                      onClick={() =>
-                        bid?.status === "End"
-                          ? navigate(`/dashboard/status`)
-                          : navigate(`/liveBid/${bid.auctionId}`)
-                      }
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        bid.status === "End"
-                          ? "bg-red-200 text-red-800"
-                          : "bg-green-200 text-green-800"
-                      }`}
-                    >
-                      {bid.status === "End" ? "auction status" : "live bids"}
-                    </button>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    # {bid?.position}
+                    <div className="flex items-center">
+                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                        bid.position === 1 
+                          ? 'bg-yellow-400 text-yellow-900' 
+                          : bid.position === 2
+                          ? 'bg-gray-300 text-gray-700'
+                          : bid.position === 3
+                          ? 'bg-orange-300 text-orange-900'
+                          : isDarkMode
+                          ? 'bg-gray-700 text-gray-300'
+                          : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        #{bid.position}
+                      </span>
+                      {bid.position === 1 && bid.status !== "End" && (
+                        <span className="ml-2 text-xs text-green-600 font-semibold">
+                          Leading!
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-sm">
-                  No bids found matching your criteria
+                <td colSpan="5" className="px-6 py-8 text-center">
+                  <p className="text-gray-500 mb-2">No bids found matching your criteria</p>
+                  <button
+                    onClick={() => navigate('/auctions')}
+                    className="text-purple-600 hover:text-purple-800 font-medium"
+                  >
+                    Browse Auctions
+                  </button>
                 </td>
               </tr>
             )}
@@ -234,13 +301,13 @@ export default function BidHistory() {
         <div
           className={`text-sm ${isDarkMode ? "text-white" : "text-gray-600"}`}
         >
-          Showing {filteredBids?.length} of bids
+          Showing {filteredBids?.length} of {bidHistory.length} bids
         </div>
-        <div className="flex space-x-1">
-          <button className="px-3 py-1 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-800">
+        <div className="flex space-x-2">
+          <button className="px-4 py-2 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Previous
           </button>
-          <button className="px-3 py-1 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-800">
+          <button className="px-4 py-2 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
             Next
           </button>
         </div>

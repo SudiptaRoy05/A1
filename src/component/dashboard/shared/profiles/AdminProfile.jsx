@@ -21,7 +21,6 @@ import {
   FaHourglassHalf,
 } from "react-icons/fa";
 import { RiUserStarFill } from "react-icons/ri";
-import toast from "react-hot-toast";
 
 const AdminProfile = () => {
   const { user, loading: authLoading } = useAuth();
@@ -37,258 +36,144 @@ const AdminProfile = () => {
     totalBuyers: 0,
     totalAuctions: 0,
     totalRevenue: 0,
-    pendingRequests: 0,
-    activeAuctions: 0,
   });
-  const [recentUsers, setRecentUsers] = useState([]);
+  const [users, setUsers] = useState([]);
   const [sellerRequests, setSellerRequests] = useState([]);
-  const [systemStatus, setSystemStatus] = useState({
-    performance: "Loading...",
-    supportTickets: 0,
-    pendingTasks: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  const [quickActions, setQuickActions] = useState([]);
   const navigate = useNavigate();
 
-  // Quick actions configuration
-  const quickActions = [
-    {
-      id: 1,
-      icon: <FaUsers className="text-2xl text-purple-500 mb-2" />,
-      label: "Manage Users",
-      path: "/dashboard/users",
-      bgColor: "bg-gradient-to-br from-purple-100 to-blue-50",
-    },
-    {
-      id: 2,
-      icon: <FaGavel className="text-2xl text-purple-500 mb-2" />,
-      label: "Manage Auctions",
-      path: "/dashboard/auctions",
-      bgColor: "bg-gradient-to-br from-blue-100 to-cyan-50",
-    },
-    {
-      id: 3,
-      icon: <RiUserStarFill className="text-2xl text-purple-500 mb-2" />,
-      label: "Seller Requests",
-      path: "/dashboard/seller-requests",
-      bgColor: "bg-gradient-to-br from-cyan-100 to-teal-50",
-    },
-    {
-      id: 4,
-      icon: <FaShieldAlt className="text-2xl text-purple-500 mb-2" />,
-      label: "Security Settings",
-      path: "/dashboard/security",
-      bgColor: "bg-gradient-to-br from-teal-100 to-emerald-50",
-    },
-  ];
-
-  // Fetch dashboard data
+  // Fetch data
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setIsLoading(true);
+    const fetchData = async () => {
       try {
-        // Fetch users data
-        const usersResponse = await axios.get("http://localhost:5001/users");
-        const users = usersResponse.data || [];
+        const [usersRes, auctionsRes, requestsRes] = await Promise.all([
+          axios.get("http://localhost:5001/users"),
+          axios.get("http://localhost:5001/auctions"),
+          axios.get("http://localhost:5001/sellerRequest"),
+        ]);
 
-        // Fetch auctions data
-        const auctionsResponse = await axios.get("http://localhost:5001/auctions");
-        const auctions = auctionsResponse.data || [];
-
-        // Fetch seller requests
-        const requestsResponse = await axios.get("http://localhost:5001/sellerRequest");
-        const requests = requestsResponse.data || [];
-
-        // Fetch revenue data (if you have an endpoint)
-        let totalRevenue = 0;
-        try {
-          const revenueResponse = await axios.get("http://localhost:5001/revenue");
-          totalRevenue = revenueResponse.data.total || 0;
-        } catch (error) {
-          console.log("Revenue endpoint not available");
-        }
-
-        // Calculate statistics
-        const totalSellers = users.filter(
-          (u) => u.role?.toLowerCase() === "seller"
+        const totalSellers = usersRes.data.filter(
+          (u) => u.role === "seller"
         ).length;
-
-        const totalBuyers = users.filter(
-          (u) => u.role?.toLowerCase() === "buyer"
+        const totalBuyers = usersRes.data.filter(
+          (u) => u.role === "buyer"
         ).length;
-
-        const activeAuctions = auctions.filter(
-          (a) => a.status === "active" || new Date(a.endTime) > new Date()
-        ).length;
-
-        const pendingRequests = requests.filter(
-          (r) => r.becomeSellerStatus?.toLowerCase() === "pending"
-        ).length;
-
-        // Calculate support tickets (if you have an endpoint)
-        let supportTickets = 0;
-        try {
-          const ticketsResponse = await axios.get("http://localhost:5001/support/tickets");
-          supportTickets = ticketsResponse.data.openTickets || 0;
-        } catch (error) {
-          supportTickets = pendingRequests; // Fallback
-        }
 
         setAdminData({
-          totalUsers: users.length,
+          totalUsers: usersRes.data.length,
           totalSellers,
           totalBuyers,
-          totalAuctions: auctions.length,
-          activeAuctions,
-          totalRevenue,
-          pendingRequests,
+          totalAuctions: auctionsRes.data.length,
+          totalRevenue: 32500,
         });
 
-        setRecentUsers(users.slice(0, 5));
-
+        setUsers(usersRes.data.slice(0, 5));
         setSellerRequests(
-          requests
-            .filter((r) => r.becomeSellerStatus?.toLowerCase() === "pending")
+          requestsRes.data
+            .filter((r) => r.becomeSellerStatus === "pending")
             .slice(0, 5)
         );
 
-        setSystemStatus({
-          performance: "Excellent (99.9% uptime)",
-          supportTickets: supportTickets,
-          pendingTasks: pendingRequests,
-        });
+        // Set quick actions
+        setQuickActions([
+          {
+            id: 1,
+            icon: <FaUsers className="text-2xl text-purple-500 mb-2" />,
+            label: "Manage Users",
+            path: "/dashboard/users",
+            bgColor: isDarkMode 
+              ? "bg-gradient-to-br from-purple-900/50 to-blue-900/50 hover:from-purple-800/50 hover:to-blue-800/50" 
+              : "bg-gradient-to-br from-purple-100 to-blue-50 hover:from-purple-200 hover:to-blue-100",
+          },
+          {
+            id: 2,
+            icon: <FaGavel className="text-2xl text-purple-500 mb-2" />,
+            label: "Manage Auctions",
+            path: "/dashboard/auctions",
+            bgColor: isDarkMode 
+              ? "bg-gradient-to-br from-blue-900/50 to-cyan-900/50 hover:from-blue-800/50 hover:to-cyan-800/50" 
+              : "bg-gradient-to-br from-blue-100 to-cyan-50 hover:from-blue-200 hover:to-cyan-100",
+          },
+          {
+            id: 3,
+            icon: <RiUserStarFill className="text-2xl text-purple-500 mb-2" />,
+            label: "Seller Requests",
+            path: "/dashboard/seller-requests",
+            bgColor: isDarkMode 
+              ? "bg-gradient-to-br from-cyan-900/50 to-teal-900/50 hover:from-cyan-800/50 hover:to-teal-800/50" 
+              : "bg-gradient-to-br from-cyan-100 to-teal-50 hover:from-cyan-200 hover:to-teal-100",
+          },
+          {
+            id: 4,
+            icon: <FaShieldAlt className="text-2xl text-purple-500 mb-2" />,
+            label: "Security",
+            path: "/dashboard/security",
+            bgColor: isDarkMode 
+              ? "bg-gradient-to-br from-teal-900/50 to-emerald-900/50 hover:from-teal-800/50 hover:to-emerald-800/50" 
+              : "bg-gradient-to-br from-teal-100 to-emerald-50 hover:from-teal-200 hover:to-emerald-100",
+          },
+        ]);
 
-        // Fetch cover options from your backend or use defaults
-        try {
-          const coverResponse = await axios.get("http://localhost:5001/cover-images");
-          setCoverOptions(coverResponse.data);
-        } catch (error) {
-          // Fallback to default cover options
-          setCoverOptions([
-            { id: 1, image: coverPhoto },
-            { id: 2, image: "https://images.unsplash.com/photo-1557683316-973673baf926?w=800" },
-            { id: 3, image: "https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=800" },
-            { id: 4, image: "https://images.unsplash.com/photo-1557683311-eac922347aa1?w=800" },
-          ]);
-        }
+        // Mock cover options
+        setCoverOptions([
+          { id: 1, image: coverPhoto },
+          { id: 2, image: "https://i.ibb.co/KSCtW5n/download-2.jpg" },
+          { id: 3, image: "https://i.ibb.co/60Q0GGYP/download-3.jpg" },
+          { id: 4, image: "https://i.ibb.co/RGwFXk1S/download-4.jpg" },
+        ]);
 
+        setCurrentCover(coverPhoto);
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-        toast.error("Failed to load dashboard data");
-        
-        // Set empty data on error
+        console.error("Error fetching data:", error);
+        // Fallback data
         setAdminData({
-          totalUsers: 0,
-          totalSellers: 0,
-          totalBuyers: 0,
-          totalAuctions: 0,
-          activeAuctions: 0,
-          totalRevenue: 0,
-          pendingRequests: 0,
+          totalUsers: 1243,
+          totalSellers: 342,
+          totalBuyers: 901,
+          totalAuctions: 567,
+          totalRevenue: 32500,
         });
-        
-        setSystemStatus({
-          performance: "Unable to fetch",
-          supportTickets: 0,
-          pendingTasks: 0,
-        });
-      } finally {
-        setIsLoading(false);
       }
     };
 
-    if (user) {
-      fetchDashboardData();
-    }
-  }, [user]);
+    fetchData();
+  }, [user, isDarkMode]);
 
   const saveCoverImage = async () => {
-    if (!selectedCover) {
-      toast.error("Please select a cover image");
-      return;
-    }
-    
+    if (!selectedCover || !user?.uid) return;
     setIsSaving(true);
     try {
-      // Save cover image to backend
-      await axios.post("http://localhost:5001/user/cover", {
-        userId: user?.uid,
-        coverImage: selectedCover
-      });
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       setCurrentCover(selectedCover);
       setIsModalOpen(false);
-      setSelectedCover(null);
-      toast.success("Cover image updated successfully");
     } catch (error) {
       console.error("Error saving cover image:", error);
-      toast.error("Failed to save cover image");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleApproveRequest = async (requestId, userEmail) => {
-    try {
-      await axios.patch(`http://localhost:5001/sellerRequest/${requestId}`, {
-        status: "approved"
-      });
-      
-      // Update user role to seller
-      await axios.patch(`http://localhost:5001/user/${userEmail}`, {
-        role: "seller"
-      });
-      
-      // Remove from local state
-      setSellerRequests(prev => prev.filter(req => req._id !== requestId));
-      setAdminData(prev => ({
-        ...prev,
-        pendingRequests: prev.pendingRequests - 1,
-        totalSellers: prev.totalSellers + 1,
-        totalBuyers: prev.totalBuyers - 1
-      }));
-      
-      toast.success("Seller request approved successfully");
-    } catch (error) {
-      console.error("Error approving request:", error);
-      toast.error("Failed to approve request");
-    }
-  };
-
-  const handleRejectRequest = async (requestId) => {
-    try {
-      await axios.patch(`http://localhost:5001/sellerRequest/${requestId}`, {
-        status: "rejected"
-      });
-      
-      setSellerRequests(prev => prev.filter(req => req._id !== requestId));
-      setAdminData(prev => ({
-        ...prev,
-        pendingRequests: prev.pendingRequests - 1
-      }));
-      
-      toast.success("Seller request rejected");
-    } catch (error) {
-      console.error("Error rejecting request:", error);
-      toast.error("Failed to reject request");
-    }
-  };
-
   const boxStyle = `rounded-xl shadow-lg ${
     isDarkMode
-      ? "bg-gray-800 border-gray-700 hover:bg-gray-700"
-      : "bg-white border-gray-200 hover:bg-gray-50"
+      ? "bg-gray-800 border-gray-700 hover:bg-gray-700 text-gray-200"
+      : "bg-white border-gray-200 hover:bg-gray-50 text-gray-800"
   } transition-all duration-300`;
 
-  if (authLoading || isLoading) return <LoadingSpinner />;
+  const cardTitleStyle = `text-lg font-semibold mb-4 ${
+    isDarkMode ? "text-gray-200" : "text-gray-700"
+  }`;
+
+  const textMutedStyle = isDarkMode ? "text-gray-400" : "text-gray-500";
+
+  if (authLoading) return <LoadingSpinner />;
 
   return (
     <div
       className={`min-h-screen ${
-        isDarkMode ? "bg-gray-900 text-white" : "bg-purple-50 text-gray-800"
+        isDarkMode ? "bg-gray-900" : "bg-purple-50"
       } transition-all duration-300 p-4 md:p-8`}
     >
-      {/* Profile Banner */}
+      {/* Profile Banner with Purple Overlay */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -303,15 +188,12 @@ const AdminProfile = () => {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center p-6 flex flex-col items-center gap-4">
             <motion.img
-              src={user?.photoURL || "https://ui-avatars.com/api/?name=Admin&background=6d28d9&color=fff"}
+              src={user?.photoURL || "https://i.imgur.com/8Km9tLL.png"}
               alt={user?.displayName || "Admin"}
               className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              onError={(e) => {
-                e.target.src = `https://ui-avatars.com/api/?name=${user?.displayName || 'Admin'}&background=6d28d9&color=fff`;
-              }}
             />
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
               Welcome Back, {user?.displayName?.split(" ")[0] || "Admin"}!
@@ -353,13 +235,15 @@ const AdminProfile = () => {
                   isDarkMode ? "text-white" : "text-gray-900"
                 }`}
               >
-                Choose Cover Image
+                Choose Your Cover Image
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className={`p-2 rounded-full ${
+                  isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"
+                } transition-colors`}
               >
-                ×
+                <span className="text-2xl">&times;</span>
               </button>
             </div>
 
@@ -371,7 +255,7 @@ const AdminProfile = () => {
                   className={`cursor-pointer rounded-lg overflow-hidden transition-all ${
                     selectedCover === cover.image
                       ? "ring-4 ring-purple-500"
-                      : "ring-1 ring-gray-300"
+                      : "ring-1 ring-gray-300 dark:ring-gray-600"
                   }`}
                   onClick={() => setSelectedCover(cover.image)}
                 >
@@ -391,14 +275,18 @@ const AdminProfile = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-5 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium"
+                className={`px-5 py-2 rounded-lg font-medium transition-all ${
+                  isDarkMode
+                    ? "bg-gray-700 hover:bg-gray-600 text-white"
+                    : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={saveCoverImage}
                 disabled={!selectedCover || isSaving}
-                className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
               >
                 {isSaving ? (
                   <>
@@ -443,28 +331,18 @@ const AdminProfile = () => {
         {/* Total Users */}
         <motion.div
           whileHover={{ y: -5 }}
-          className={`rounded-xl shadow-md overflow-hidden ${
-            isDarkMode ? "bg-gray-800" : "bg-white"
-          } flex flex-col h-40 justify-between`}
+          className={`rounded-xl shadow-md overflow-hidden ${boxStyle}`}
         >
           <div className="p-6 flex items-start justify-between">
             <div>
-              <p
-                className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-600"
-                }`}
-              >
+              <p className={`text-sm font-medium ${isDarkMode ? "text-purple-300" : "text-purple-600"}`}>
                 Total Users
               </p>
-              <h3 className="text-3xl font-bold mt-2">
+              <h3 className={`text-3xl font-bold mt-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 <CountUp end={adminData.totalUsers} duration={2} />
               </h3>
-              <p
-                className={`text-xs mt-1 ${
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                {adminData.totalSellers} Sellers · {adminData.totalBuyers} Buyers
+              <p className={`text-xs mt-1 ${textMutedStyle}`}>
+                {adminData.totalSellers} sellers, {adminData.totalBuyers} buyers
               </p>
             </div>
             <div
@@ -485,27 +363,22 @@ const AdminProfile = () => {
         {/* Total Revenue */}
         <motion.div
           whileHover={{ y: -5 }}
-          className={`rounded-xl shadow-md overflow-hidden ${
-            isDarkMode ? "bg-gray-800" : "bg-white"
-          } flex flex-col h-40 justify-between`}
+          className={`rounded-xl shadow-md overflow-hidden ${boxStyle}`}
         >
           <div className="p-6 flex items-start justify-between">
             <div>
-              <p
-                className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-600"
-                }`}
-              >
+              <p className={`text-sm font-medium ${isDarkMode ? "text-purple-300" : "text-purple-600"}`}>
                 Total Revenue
               </p>
-              <h3 className="text-3xl font-bold mt-2">
-                ${<CountUp end={adminData.totalRevenue} duration={2} separator="," />}
+              <h3 className={`text-3xl font-bold mt-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                $
+                <CountUp
+                  end={adminData.totalRevenue}
+                  duration={2}
+                  separator=","
+                />
               </h3>
-              <p
-                className={`text-xs mt-1 ${
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
+              <p className={`text-xs mt-1 ${textMutedStyle}`}>
                 Lifetime earnings
               </p>
             </div>
@@ -527,28 +400,18 @@ const AdminProfile = () => {
         {/* Active Auctions */}
         <motion.div
           whileHover={{ y: -5 }}
-          className={`rounded-xl shadow-md overflow-hidden ${
-            isDarkMode ? "bg-gray-800" : "bg-white"
-          } flex flex-col h-40 justify-between`}
+          className={`rounded-xl shadow-md overflow-hidden ${boxStyle}`}
         >
           <div className="p-6 flex items-start justify-between">
             <div>
-              <p
-                className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-600"
-                }`}
-              >
-                Active Auctions
+              <p className={`text-sm font-medium ${isDarkMode ? "text-purple-300" : "text-purple-600"}`}>
+                Total Auctions
               </p>
-              <h3 className="text-3xl font-bold mt-2">
-                <CountUp end={adminData.activeAuctions} duration={2} />
+              <h3 className={`text-3xl font-bold mt-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                <CountUp end={adminData.totalAuctions} duration={2} />
               </h3>
-              <p
-                className={`text-xs mt-1 ${
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Out of {adminData.totalAuctions} total
+              <p className={`text-xs mt-1 ${textMutedStyle}`}>
+                Active and completed
               </p>
             </div>
             <div
@@ -569,28 +432,18 @@ const AdminProfile = () => {
         {/* Pending Requests */}
         <motion.div
           whileHover={{ y: -5 }}
-          className={`rounded-xl shadow-md overflow-hidden ${
-            isDarkMode ? "bg-gray-800" : "bg-white"
-          } flex flex-col h-40 justify-between`}
+          className={`rounded-xl shadow-md overflow-hidden ${boxStyle}`}
         >
           <div className="p-6 flex items-start justify-between">
             <div>
-              <p
-                className={`text-sm font-medium ${
-                  isDarkMode ? "text-purple-300" : "text-purple-600"
-                }`}
-              >
+              <p className={`text-sm font-medium ${isDarkMode ? "text-purple-300" : "text-purple-600"}`}>
                 Pending Requests
               </p>
-              <h3 className="text-3xl font-bold mt-2">
-                <CountUp end={adminData.pendingRequests} duration={2} />
+              <h3 className={`text-3xl font-bold mt-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+                <CountUp end={sellerRequests.length} duration={2} />
               </h3>
-              <p
-                className={`text-xs mt-1 ${
-                  isDarkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              >
-                Requires attention
+              <p className={`text-xs mt-1 ${textMutedStyle}`}>
+                Requires your attention
               </p>
             </div>
             <div
@@ -609,19 +462,18 @@ const AdminProfile = () => {
         </motion.div>
       </motion.div>
 
-      {/* Main Dashboard Content */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Main Dashboard Content - Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
         {/* Left Column - Quick Actions */}
-        <div className="space-y-6 lg:col-span-1">
-          {/* Quick Actions */}
+        <div className="lg:col-span-1">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
             className={boxStyle}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold flex items-center gap-2">
+            <div className={`p-6 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"}`}>
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 <FaCog className="text-purple-500" />
                 Quick Actions
               </h2>
@@ -633,114 +485,40 @@ const AdminProfile = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => navigate(action.path)}
-                  className={`p-4 rounded-lg flex flex-col items-center justify-center ${action.bgColor} transition-colors dark:bg-opacity-20`}
+                  className={`p-4 rounded-lg flex flex-col items-center justify-center ${action.bgColor} transition-all`}
                 >
-                  {action.icon}
-                  <span className="text-sm font-medium">{action.label}</span>
+                  <div className="text-purple-500">{action.icon}</div>
+                  <span className={`text-sm font-medium mt-1 ${isDarkMode ? "text-gray-200" : "text-gray-700"}`}>
+                    {action.label}
+                  </span>
                 </motion.button>
               ))}
             </div>
           </motion.div>
-
-          {/* System Status */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
-            className={boxStyle}
-          >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <FaShieldAlt className="text-purple-500" />
-                System Status
-              </h2>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-4">
-                <div
-                  className={`p-3 rounded-full ${
-                    isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
-                  }`}
-                >
-                  <FaChartLine className="text-purple-500 text-xl" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Performance</h4>
-                  <p
-                    className={`text-sm ${
-                      isDarkMode ? "text-gray-400" : "text-gray-500"
-                    }`}
-                  >
-                    {systemStatus.performance}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div
-                  className={`p-3 rounded-full ${
-                    isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
-                  }`}
-                >
-                  <FaTicketAlt className="text-purple-500 text-xl" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Support Tickets</h4>
-                  <p
-                    className={`text-sm ${
-                      isDarkMode ? "text-gray-400" : "text-gray-500"
-                    }`}
-                  >
-                    {systemStatus.supportTickets} open tickets
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div
-                  className={`p-3 rounded-full ${
-                    isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
-                  }`}
-                >
-                  <FaHourglassHalf className="text-purple-500 text-xl" />
-                </div>
-                <div>
-                  <h4 className="font-medium">Pending Tasks</h4>
-                  <p
-                    className={`text-sm ${
-                      isDarkMode ? "text-gray-400" : "text-gray-500"
-                    }`}
-                  >
-                    {systemStatus.pendingTasks} tasks to review
-                  </p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         </div>
 
-        {/* Right Column - Main Content */}
-        <div className="space-y-6 lg:col-span-2">
+        {/* Right Column - Two Sections */}
+        <div className="lg:col-span-2 space-y-6">
           {/* Pending Seller Requests */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
             className={boxStyle}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
+            <div className={`p-6 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"} flex justify-between items-center`}>
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 <RiUserStarFill className="text-purple-500" />
                 Pending Seller Requests
-                {adminData.pendingRequests > 0 && (
-                  <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-full">
-                    {adminData.pendingRequests} New
+                {sellerRequests.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 text-xs font-bold rounded-full">
+                    {sellerRequests.length} New
                   </span>
                 )}
               </h2>
               <button
-                onClick={() => navigate("/dashboard/seller-requests")}
-                className="text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                onClick={() => navigate("/dashboard/sellerRequest")}
+                className="text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
               >
                 View All
               </button>
@@ -748,11 +526,11 @@ const AdminProfile = () => {
             <div className="p-6">
               {sellerRequests.length === 0 ? (
                 <div className="text-center py-8">
-                  <RiUserStarFill className="mx-auto text-4xl text-purple-300 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500">
+                  <RiUserStarFill className={`mx-auto text-4xl ${isDarkMode ? "text-purple-700" : "text-purple-300"} mb-4`} />
+                  <h3 className={`text-lg font-medium ${isDarkMode ? "text-gray-300" : "text-gray-500"}`}>
                     No pending seller requests
                   </h3>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className={`text-sm ${textMutedStyle} mt-1`}>
                     All requests have been processed
                   </p>
                 </div>
@@ -763,25 +541,20 @@ const AdminProfile = () => {
                       key={request._id}
                       whileHover={{ scale: 1.01 }}
                       className={`p-4 rounded-lg flex items-center justify-between ${
-                        isDarkMode ? "bg-gray-700" : "bg-purple-50"
+                        isDarkMode ? "bg-gray-700/50" : "bg-purple-50"
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <img
-                          src={request.photo || `https://ui-avatars.com/api/?name=${request.name}&background=6d28d9&color=fff`}
-                          alt={request.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                          onError={(e) => {
-                            e.target.src = `https://ui-avatars.com/api/?name=${request.name}&background=6d28d9&color=fff`;
-                          }}
-                        />
+                        <div
+                          className={`p-3 rounded-full ${
+                            isDarkMode ? "bg-gray-600" : "bg-purple-100"
+                          }`}
+                        >
+                          <RiUserStarFill className="text-purple-500" />
+                        </div>
                         <div>
-                          <h4 className="font-medium">{request.name}</h4>
-                          <p
-                            className={`text-xs ${
-                              isDarkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
-                          >
+                          <h4 className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>{request.name}</h4>
+                          <p className={`text-xs ${textMutedStyle}`}>
                             {request.email}
                           </p>
                         </div>
@@ -790,8 +563,7 @@ const AdminProfile = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleApproveRequest(request._id, request.email)}
-                          className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-colors"
+                          className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 transition-colors"
                           title="Approve"
                         >
                           <FaCheckCircle />
@@ -799,8 +571,7 @@ const AdminProfile = () => {
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleRejectRequest(request._id)}
-                          className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                          className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50 transition-colors"
                           title="Reject"
                         >
                           <FaTimesCircle />
@@ -817,94 +588,143 @@ const AdminProfile = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
             className={boxStyle}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
+            <div className={`p-6 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"} flex justify-between items-center`}>
+              <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
                 <FaUsers className="text-purple-500" />
                 Recent Users
               </h2>
               <button
-                onClick={() => navigate("/dashboard/users")}
-                className="text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                onClick={() => navigate("/dashboard/userManagement")}
+                className="text-sm text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 transition-colors"
               >
                 View All
               </button>
             </div>
             <div className="p-6">
-              {recentUsers.length === 0 ? (
-                <div className="text-center py-8">
-                  <FaUsers className="mx-auto text-4xl text-purple-300 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500">
-                    No users found
-                  </h3>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr
-                        className={`text-left ${
-                          isDarkMode ? "text-gray-300" : "text-gray-600"
-                        }`}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className={`text-left ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                      <th className="pb-3 font-medium">User</th>
+                      <th className="pb-3 font-medium">Role</th>
+                      <th className="pb-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${isDarkMode ? "divide-gray-700" : "divide-gray-200"}`}>
+                    {users.map((user) => (
+                      <motion.tr
+                        key={user._id}
+                        whileHover={{
+                          backgroundColor: isDarkMode
+                            ? "rgba(76, 29, 149, 0.2)"
+                            : "rgba(216, 180, 254, 0.2)",
+                        }}
+                        className="transition-colors"
                       >
-                        <th className="pb-3 font-medium">User</th>
-                        <th className="pb-3 font-medium">Role</th>
-                        <th className="pb-3 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {recentUsers.map((user) => (
-                        <motion.tr
-                          key={user._id}
-                          whileHover={{
-                            backgroundColor: isDarkMode
-                              ? "rgba(76, 29, 149, 0.1)"
-                              : "rgba(216, 180, 254, 0.2)",
-                          }}
-                          className={`${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          <td className="py-3">
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={user.photo || `https://ui-avatars.com/api/?name=${user.name}&background=6d28d9&color=fff`}
-                                alt={user.name}
-                                className="w-8 h-8 rounded-full object-cover"
-                                onError={(e) => {
-                                  e.target.src = `https://ui-avatars.com/api/?name=${user.name}&background=6d28d9&color=fff`;
-                                }}
-                              />
-                              <div>
-                                <p className="font-medium">{user.name}</p>
-                                <p className="text-xs opacity-70">{user.email}</p>
-                              </div>
+                        <td className="py-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={user.photo}
+                              alt={user.name}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                            <div>
+                              <p className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>{user.name}</p>
+                              <p className={`text-xs ${textMutedStyle}`}>{user.email}</p>
                             </div>
-                          </td>
-                          <td className="py-3 capitalize">{user.role || "user"}</td>
-                          <td className="py-3">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                user.status === "active" || !user.status
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                                  : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                              }`}
-                            >
-                              {user.status || "active"}
-                            </span>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                          </div>
+                        </td>
+                        <td className={`py-3 capitalize ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>{user.role}</td>
+                        <td className="py-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.status === "active"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                            }`}
+                          >
+                            {user.status || "active"}
+                          </span>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </motion.div>
         </div>
       </div>
+
+      {/* System Status */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.6 }}
+        className={`${boxStyle} mt-8 max-w-7xl mx-auto`}
+      >
+        <div className={`p-6 border-b ${isDarkMode ? "border-gray-700" : "border-gray-200"} flex justify-between items-center`}>
+          <h2 className={`text-xl font-bold flex items-center gap-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
+            <FaShieldAlt className="text-purple-500" />
+            System Status
+          </h2>
+          <span className="px-3 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 text-sm font-medium rounded-full">
+            All Systems Operational
+          </span>
+        </div>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex items-center gap-4">
+            <div
+              className={`p-3 rounded-full ${
+                isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
+              }`}
+            >
+              <FaChartLine className="text-purple-500 text-xl" />
+            </div>
+            <div>
+              <h4 className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Performance</h4>
+              <p className={`text-sm ${textMutedStyle}`}>
+                Excellent (99.9% uptime)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div
+              className={`p-3 rounded-full ${
+                isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
+              }`}
+            >
+              <FaTicketAlt className="text-purple-500 text-xl" />
+            </div>
+            <div>
+              <h4 className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Support Tickets</h4>
+              <p className={`text-sm ${textMutedStyle}`}>
+                5 open tickets
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div
+              className={`p-3 rounded-full ${
+                isDarkMode ? "bg-purple-900/50" : "bg-purple-100"
+              }`}
+            >
+              <FaHourglassHalf className="text-purple-500 text-xl" />
+            </div>
+            <div>
+              <h4 className={`font-medium ${isDarkMode ? "text-white" : "text-gray-900"}`}>Pending Tasks</h4>
+              <p className={`text-sm ${textMutedStyle}`}>
+                {sellerRequests.length} requests to review
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

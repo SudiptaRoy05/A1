@@ -61,9 +61,7 @@ const SellerProfile = () => {
     if (user?.email) {
       setBalanceLoading(true);
       axios
-        .get(
-          `http://localhost:5001/users?email=${user.email}`
-        )
+        .get(`http://localhost:5001/users?email=${user.email}`)
         .then((res) => {
           const userData = res.data[0];
           setAccountBalance(userData?.accountBalance || 0);
@@ -77,34 +75,12 @@ const SellerProfile = () => {
     }
   }, [user]);
 
-  // Fetch payments for seller
-  useEffect(() => {
-    if (user?.email) {
-      setPaymentsLoading(true);
-      axios
-        .get(
-          `http://localhost:5001/payments?sellerEmail=${user.email}`
-        )
-        .then((res) => {
-          setPayments(res.data.slice(0, 5));
-          setPaymentsLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error fetching payments:", err);
-          setPaymentsError("Failed to load payments. Please try again later.");
-          setPaymentsLoading(false);
-        });
-    }
-  }, [user]);
-
-  // Fetch auctions for seller
+  // Fetch auctions for seller to get auction IDs
   useEffect(() => {
     if (user?.email) {
       setAuctionsLoading(true);
       axios
-        .get(
-          `http://localhost:5001/auctions?sellerEmail=${user.email}`
-        )
+        .get(`http://localhost:5001/auctions?sellerEmail=${user.email}`)
         .then((res) => {
           setAuctions(res.data.slice(0, 5));
           setAuctionsLoading(false);
@@ -117,13 +93,67 @@ const SellerProfile = () => {
     }
   }, [user]);
 
+  // Fetch payments for seller using auction IDs
+  useEffect(() => {
+    const fetchSellerPayments = async () => {
+      if (!user?.email || auctions.length === 0) return;
+
+      setPaymentsLoading(true);
+      setPaymentsError(null);
+
+      try {
+        // Get all auction IDs for this seller
+        const sellerAuctionIds = auctions.map(auction => auction._id || auction.id);
+        
+        if (sellerAuctionIds.length === 0) {
+          setPayments([]);
+          setPaymentsLoading(false);
+          return;
+        }
+
+        // Fetch all payments
+        const paymentsResponse = await axios.get(`http://localhost:5001/api/payments`);
+        const allPayments = paymentsResponse.data || [];
+
+        // Filter payments that belong to seller's auctions
+        const sellerPayments = allPayments.filter(payment => 
+          sellerAuctionIds.includes(payment.auctionId) ||
+          payment.sellerEmail === user.email ||
+          payment.sellerInfo?.email === user.email
+        );
+
+        // Sort by date (newest first) and take latest 5
+        const sortedPayments = sellerPayments
+          .sort((a, b) => new Date(b.paymentDate || b.createdAt) - new Date(a.paymentDate || a.createdAt))
+          .slice(0, 5);
+
+        setPayments(sortedPayments);
+      } catch (err) {
+        console.error("Error fetching payments:", err);
+        setPaymentsError("Failed to load payments. Please try again later.");
+        
+        // Fallback to direct seller email query
+        try {
+          const fallbackResponse = await axios.get(
+            `http://localhost:5001/payments?sellerEmail=${user.email}`
+          );
+          setPayments(fallbackResponse.data.slice(0, 5));
+        } catch (fallbackErr) {
+          console.error("Fallback payment fetch also failed:", fallbackErr);
+        }
+      } finally {
+        setPaymentsLoading(false);
+      }
+    };
+
+    fetchSellerPayments();
+  }, [user, auctions]);
+
   // Fetch cover options and user cover
   useEffect(() => {
     const fetchCoverOptions = async () => {
       try {
-        const response = await axios.get(
-          "http://localhost:5001/cover-options"
-        );
+        const response = await axios.get("http://localhost:5001/cover-options");
         setCoverOptions(response.data);
       } catch (error) {
         console.error("Error fetching cover options:", error);
@@ -139,9 +169,7 @@ const SellerProfile = () => {
     const fetchUserCover = async () => {
       if (user?.uid) {
         try {
-          const response = await axios.get(
-            `http://localhost:5001/cover/${user.uid}`
-          );
+          const response = await axios.get(`http://localhost:5001/cover/${user.uid}`);
           if (response.data.image) {
             setCurrentCover(response.data.image);
           }
@@ -158,16 +186,25 @@ const SellerProfile = () => {
 
   // Calculate total earnings from completed payments
   const totalEarnings = payments
-    .filter((payment) => payment.PaymentStatus === "success")
-    .reduce((sum, payment) => sum + (payment.price || 0), 0);
+    .filter((payment) => payment.status === "completed" || payment.status === "succeeded" || payment.PaymentStatus === "success")
+    .reduce((sum, payment) => {
+      const amount = payment.amount || payment.price || 0;
+      return sum + amount;
+    }, 0);
+
+  // Calculate pending earnings
+  const pendingEarnings = payments
+    .filter((payment) => payment.status === "pending" || payment.status === "processing" || payment.PaymentStatus === "pending")
+    .reduce((sum, payment) => {
+      const amount = payment.amount || payment.price || 0;
+      return sum + amount;
+    }, 0);
 
   // Prepare chart data for auction activity
   const chartData = auctions.length
     ? auctions
         .reduce((acc, auction) => {
-          const date = new Date(
-            auction.createdAt || Date.now()
-          ).toLocaleDateString();
+          const date = new Date(auction.createdAt || Date.now()).toLocaleDateString();
           const existing = acc.find((item) => item.date === date);
           if (existing) {
             existing.count += 1;
@@ -186,13 +223,10 @@ const SellerProfile = () => {
     if (!selectedCover || !user?.uid) return;
     setIsSaving(true);
     try {
-      await axios.patch(
-        "http://localhost:5001/cover",
-        {
-          userId: user.uid,
-          image: selectedCover,
-        }
-      );
+      await axios.patch("http://localhost:5001/cover", {
+        userId: user.uid,
+        image: selectedCover,
+      });
       setCurrentCover(selectedCover);
       setIsModalOpen(false);
     } catch (error) {
@@ -665,7 +699,7 @@ const SellerProfile = () => {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-items-center mb-6">
                   <h3 className="text-xl font-semibold">Your Auctions</h3>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -727,85 +761,131 @@ const SellerProfile = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Total Earnings Summary */}
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      className={`p-6 rounded-xl shadow-md ${
-                        isDarkMode
-                          ? "bg-gradient-to-r from-green-900 to-green-700"
-                          : "bg-gradient-to-r from-green-100 to-green-200"
-                      } flex items-center gap-4`}
-                    >
-                      <FaMoneyCheckAlt className="text-3xl text-green-500" />
-                      <div>
-                        <h3 className="text-lg font-semibold">
-                          Total Earnings
-                        </h3>
-                        <p className="text-2xl font-bold">
-                          ৳
-                          <CountUp
-                            end={totalEarnings}
-                            decimals={2}
-                            duration={2}
-                          />
-                        </p>
-                        <p className={labelStyle}>From completed payments</p>
-                      </div>
-                    </motion.div>
+                    {/* Earnings Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        className={`p-6 rounded-xl shadow-md ${
+                          isDarkMode
+                            ? "bg-gradient-to-r from-green-900 to-green-700"
+                            : "bg-gradient-to-r from-green-100 to-green-200"
+                        } flex items-center gap-4`}
+                      >
+                        <FaMoneyCheckAlt className="text-3xl text-green-500" />
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            Total Earnings
+                          </h3>
+                          <p className="text-2xl font-bold">
+                            ৳
+                            <CountUp
+                              end={totalEarnings}
+                              decimals={2}
+                              duration={2}
+                            />
+                          </p>
+                          <p className={labelStyle}>From completed payments</p>
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        whileHover={{ scale: 1.02 }}
+                        className={`p-6 rounded-xl shadow-md ${
+                          isDarkMode
+                            ? "bg-gradient-to-r from-yellow-900 to-yellow-700"
+                            : "bg-gradient-to-r from-yellow-100 to-yellow-200"
+                        } flex items-center gap-4`}
+                      >
+                        <FaWallet className="text-3xl text-yellow-500" />
+                        <div>
+                          <h3 className="text-lg font-semibold">
+                            Pending Earnings
+                          </h3>
+                          <p className="text-2xl font-bold">
+                            ৳
+                            <CountUp
+                              end={pendingEarnings}
+                              decimals={2}
+                              duration={2}
+                            />
+                          </p>
+                          <p className={labelStyle}>Awaiting confirmation</p>
+                        </div>
+                      </motion.div>
+                    </div>
 
                     {/* Payment Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {payments.map((payment) => (
-                        <motion.div
-                          key={payment._id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                          whileHover={{ scale: 1.02 }}
-                          className={`p-4 rounded-lg shadow-md ${
-                            isDarkMode ? "bg-gray-700" : "bg-white"
-                          } border ${
-                            isDarkMode ? "border-gray-600" : "border-gray-200"
-                          } hover:${
-                            isDarkMode ? "bg-gray-600" : "bg-gray-50"
-                          } transition-colors`}
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-lg font-semibold truncate">
-                              {payment.itemInfo?.name || "N/A"}
-                            </h4>
-                            <span
-                              className={`text-xs px-2 py-1 rounded-md capitalize ${
-                                payment.PaymentStatus === "success"
-                                  ? "bg-green-500 text-white"
-                                  : "bg-yellow-500 text-white"
-                              }`}
-                            >
-                              {payment.PaymentStatus || "Pending"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <FaWallet className="text-purple-500" />
-                            <p className="text-sm">
-                              Amount: ৳
-                              {typeof payment.price === "number"
-                                ? payment.price.toLocaleString()
-                                : "0"}
+                      {payments.map((payment) => {
+                        const amount = payment.amount || payment.price || 0;
+                        const status = payment.status || payment.PaymentStatus || "pending";
+                        const isCompleted = status === "completed" || status === "succeeded" || status === "success";
+                        
+                        return (
+                          <motion.div
+                            key={payment._id || payment.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3 }}
+                            whileHover={{ scale: 1.02 }}
+                            className={`p-4 rounded-lg shadow-md ${
+                              isDarkMode ? "bg-gray-700" : "bg-white"
+                            } border ${
+                              isDarkMode ? "border-gray-600" : "border-gray-200"
+                            } hover:${
+                              isDarkMode ? "bg-gray-600" : "bg-gray-50"
+                            } transition-colors`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-lg font-semibold truncate">
+                                {payment.auctionTitle || 
+                                 payment.auctionDetails?.title || 
+                                 payment.itemInfo?.name || 
+                                 "N/A"}
+                              </h4>
+                              <span
+                                className={`text-xs px-2 py-1 rounded-md capitalize ${
+                                  isCompleted
+                                    ? "bg-green-500 text-white"
+                                    : "bg-yellow-500 text-white"
+                                }`}
+                              >
+                                {status}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <FaWallet className="text-purple-500" />
+                              <p className="text-sm">
+                                Amount: ৳{amount.toLocaleString()}
+                              </p>
+                            </div>
+                            <p className={labelStyle}>
+                              Buyer: {payment.buyerName || 
+                                     payment.buyerInfo?.name || 
+                                     payment.buyerEmail || 
+                                     "N/A"}
                             </p>
-                          </div>
-                          <p className={labelStyle}>
-                            Date:{" "}
-                            {payment.paymentDate
-                              ? new Date(
-                                  payment.paymentDate
-                                ).toLocaleDateString()
-                              : "N/A"}
-                          </p>
-                          <p className={labelStyle}>
-                            Method: {payment.PaymentMethod || "N/A"}
-                          </p>
-                        </motion.div>
-                      ))}
+                            <p className={labelStyle}>
+                              Date:{" "}
+                              {payment.paymentDate || payment.createdAt
+                                ? new Date(
+                                    payment.paymentDate || payment.createdAt
+                                  ).toLocaleDateString()
+                                : "N/A"}
+                            </p>
+                            <p className={labelStyle}>
+                              Method: {payment.paymentMethod || 
+                                      payment.PaymentMethod || 
+                                      "N/A"}
+                            </p>
+                            {payment.auctionId && (
+                              <p className={`text-xs mt-2 ${labelStyle}`}>
+                                Auction ID: {payment.auctionId.slice(-8)}
+                              </p>
+                            )}
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -851,7 +931,24 @@ const SellerProfile = () => {
           <div className={`${boxStyle}`}>
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
-              <p className={labelStyle}>No recent activity available.</p>
+              {payments.length > 0 ? (
+                <div className="space-y-2">
+                  <p className={labelStyle}>
+                    Last payment: ৳
+                    {payments[0]?.amount || payments[0]?.price || 0}
+                  </p>
+                  <p className={labelStyle}>
+                    Date:{" "}
+                    {payments[0]?.paymentDate || payments[0]?.createdAt
+                      ? new Date(
+                          payments[0]?.paymentDate || payments[0]?.createdAt
+                        ).toLocaleDateString()
+                      : "N/A"}
+                  </p>
+                </div>
+              ) : (
+                <p className={labelStyle}>No recent activity available.</p>
+              )}
             </div>
           </div>
         </motion.div>
@@ -865,7 +962,9 @@ const SellerProfile = () => {
           <div className={`${boxStyle}`}>
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">Pending Auctions</h3>
-              <p className={labelStyle}>No pending auctions.</p>
+              <p className={labelStyle}>
+                {auctions.filter(a => a.status === "pending").length} pending auctions
+              </p>
             </div>
           </div>
         </motion.div>
